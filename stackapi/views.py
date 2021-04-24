@@ -11,18 +11,14 @@ from .throttles import UserMinThrottle, UserDayThrottle
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 
-
 class QuestionAPI(generics.ListAPIView):
-    queryset = Question.objects.all()
+    queryset = Question.objects.all().order_by('id')
     serializer_class = QuestionSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['question', 'tags', 'vote_count', 'views']
     throttle_classes = [UserMinThrottle, UserDayThrottle]
     pagination_class = PageNumberPagination
 
-
-class LatestView(APIView):
-    throttle_classes = [UserMinThrottle, UserDayThrottle]
     @method_decorator(cache_page(60*60*2))
     def get(self,request):
         try:
@@ -40,6 +36,10 @@ class LatestView(APIView):
                 question.views = views
                 question.tags = tags
                 question.save()
-            return HttpResponse("Latest Data Fetched from Stack Overflow")
-        except e as Exception:
-            return HttpResponse(f"Failed {e}")
+            instance = self.queryset
+            data = self.filter_queryset(instance)
+            page = self.paginate_queryset(data)
+            serializers = self.serializer_class(page,many=True)
+            return self.get_paginated_response(serializers.data)
+        except Exception:
+            return HttpResponse("Failed Response")
